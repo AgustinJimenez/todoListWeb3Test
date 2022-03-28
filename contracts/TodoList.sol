@@ -37,5 +37,7 @@ contract TodoList {
     emit TaskCompleted(_id, task.completed);
   }
 
-  constructor() {}
+  constructor() {
+
+  }
 }
