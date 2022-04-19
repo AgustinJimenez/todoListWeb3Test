@@ -124,7 +124,9 @@ const PayAddress = () => {
     <div className="col">
       <Card body className="text-center">
         <Card.Title>Pay Address </Card.Title>
-        <Row>Balance: {balance}</Row>
+        <Row>
+          <div className="col">Your balance: {balance} eth</div>
+        </Row>
         <Row>
           <div className="col">
             <Form.Label htmlFor="inlineFormInput" visuallyHidden>

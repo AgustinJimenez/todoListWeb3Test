@@ -22,11 +22,11 @@ contract TodoList {
     uint id,
     bool completed
   );
-
   function createTask(string memory _content) public {
-    uint tc = tasksCount[msg.sender];
-    tasks[msg.sender][tc] = Task(tc, _content, false);
-    emit TaskCreated(tc, _content, false);
+    uint address_task_count = tasksCount[msg.sender];
+    Task memory new_task = Task(address_task_count, _content, false);
+    tasks[msg.sender][address_task_count] = new_task;
+    emit TaskCreated(address_task_count, _content, false);
     tasksCount[msg.sender]++;
   }
 
