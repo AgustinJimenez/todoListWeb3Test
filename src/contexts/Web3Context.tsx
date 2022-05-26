@@ -4,6 +4,7 @@ import Web3 from "web3";
 import TodoListJSON from "../../build/contracts/TodoList.json";
 import PayJSON from "../../build/contracts/Pay.json";
 import { weiToEth } from "../utils";
+import { IContact } from "../interfaces";
 const contract = require("@truffle/contract");
 
 interface ITask {
@@ -22,6 +23,9 @@ interface CtxProps {
   toggleCompleted: (id: string) => void;
   balance: any;
   fetchBalance: () => void;
+  sendEth: (contact_id: string, amount_in_eth: number) => void;
+  contacts: IContact[];
+  addNewContact: ({ full_name, address }) => void;
 }
 
 const CtxDefaultValues = {
@@ -34,6 +38,9 @@ const CtxDefaultValues = {
   toggleCompleted: (id) => {},
   balance: 0,
   fetchBalance: () => {},
+  sendEth: (contact_id: string, amount_in_eth: number) => {},
+  contacts: [],
+  addNewContact: ({ full_name, address }) => {},
 };
 
 export const Web3Context = React.createContext<CtxProps>(CtxDefaultValues);
@@ -46,9 +53,13 @@ export const Web3ContextProvider = (props: any) => {
   const [addressAccount, setAddressAccount] = React.useState<string>("");
   const [tasks, setTasks] = React.useState<ITask[]>([]);
   const [balance, setBalance] = React.useState(0);
-
+  const [contacts, setContacts] = React.useState<IContact[]>([]);
   const [todoContract, setTodoContract] = React.useState();
   const [payContract, setPayContract] = React.useState();
+
+  const newContactWasCreated = () => {
+    fetchContacts();
+  };
 
   const loadWeb3 = async () => {
     // Modern dapp browsers...
@@ -107,6 +118,32 @@ export const Web3ContextProvider = (props: any) => {
       .send({ from: addressAccount });
   };
 
+  const fetchContacts = async () => {
+    const contacts = await payContract.methods.getContacts().call();
+    setContacts(contacts);
+  };
+
+  const addNewContact = async ({ full_name, address }) => {
+    try {
+      await payContract.methods
+        .addContact(full_name, address)
+        .send({ from: addressAccount });
+    } catch (e) {
+      console.log("error : ", e);
+    }
+  };
+
+  const sendEth = async (contact_id: any, amount_in_eth: number) => {
+    const amount_in_wei = window.web3.utils.toWei(
+      String(amount_in_eth),
+      "ether"
+    );
+    await payContract.methods
+      .payEthToContact(contact_id)
+      .send({ from: addressAccount, value: amount_in_wei });
+    fetchBalance();
+  };
+
   const fetchDefaultAccount = async () => {
     const accounts = await window?.web3?.eth?.requestAccounts();
     const defaultAccount = accounts?.[0];
@@ -114,14 +151,10 @@ export const Web3ContextProvider = (props: any) => {
   };
 
   const fetchBalance = async () => {
-    const balance = await web3.eth.getBalance(addressAccount);
-    const ethAmmount = weiToEth(balance).toFixed(3);
-    setBalance(ethAmmount);
-  };
-
-  const getContacts = async () => {
-    // const contacts = await payContract.methods.helloWorld().call();
-    // console.log(contacts);
+    // let balance = await payContract.methods.getBalance().call();
+    let balance = await web3.eth.getBalance(addressAccount);
+    balance = weiToEth(balance).toFixed(3);
+    setBalance(balance);
   };
 
   const fetchTasks = async () => {
@@ -135,6 +168,10 @@ export const Web3ContextProvider = (props: any) => {
       tasks.push(task);
     }
     setTasks(tasks);
+  };
+
+  const setContractsEventHandlers = () => {
+    payContract?.events?.NewContactWasCreated(newContactWasCreated);
   };
 
   const loadContracts = async () => {
@@ -166,9 +203,13 @@ export const Web3ContextProvider = (props: any) => {
     if (!!networkId) loadContracts();
   }, [networkId]);
   useEffect(() => {
-    if (!!contractsAreLoaded) getContacts();
+    if (!!contractsAreLoaded) {
+      setContractsEventHandlers();
+      fetchContacts();
+    }
   }, [contractsAreLoaded]);
-  // console.log("\n\n RENDER ===> ", { tasks });
+  //console.log("\n\n RENDER ===> ", { payContract });
+
   return (
     <Web3Context.Provider
       value={{
@@ -181,6 +222,9 @@ export const Web3ContextProvider = (props: any) => {
         toggleCompleted,
         balance,
         fetchBalance,
+        sendEth,
+        contacts,
+        addNewContact,
       }}
     >
       {(() => {
