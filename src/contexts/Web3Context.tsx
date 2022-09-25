@@ -1,11 +1,12 @@
 //@ts-nocheck
-import React, { useEffect } from "react";
-import Web3 from "web3";
-import TodoListJSON from "../../build/contracts/TodoList.json";
-import PayJSON from "../../build/contracts/Pay.json";
+import React, { useEffect, useState } from "react";
+import TodoListJSON from "../../artifacts/contracts/TodoList.sol/TodoList.json";
+import PayJSON from "../../artifacts/contracts/Pay.sol/Pay.json";
 import { weiToEth } from "../utils";
 import { IContact } from "../interfaces";
-const contract = require("@truffle/contract");
+import Web3 from "web3";
+
+const NETWORK_ID = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 interface ITask {
   id: number;
@@ -46,9 +47,8 @@ const CtxDefaultValues = {
 export const Web3Context = React.createContext<CtxProps>(CtxDefaultValues);
 
 export const Web3ContextProvider = (props: any) => {
-  const [web3IsLoad, setWeb3IsLoadTo] = React.useState<boolean>(false);
-  const [contractsAreLoaded, setContractsAreLoaded] =
-    React.useState<boolean>(false);
+  const [web3, setWeb3] = React.useState<Web3>();
+  const [contractsAreReady, setContractsAreReady] = React.useState(false);
   const [networkId, setNetworkId] = React.useState();
   const [addressAccount, setAddressAccount] = React.useState<string>("");
   const [tasks, setTasks] = React.useState<ITask[]>([]);
@@ -57,96 +57,136 @@ export const Web3ContextProvider = (props: any) => {
   const [todoContract, setTodoContract] = React.useState();
   const [payContract, setPayContract] = React.useState();
 
+  const executeContractMethod = async (options: {
+    contract: any;
+    method: string;
+    args: [];
+    defaultValue: any;
+    typeExecution: string;
+    sendOptions: any;
+    debug: boolean;
+  }) => {
+    const {
+      contract,
+      method,
+      args = [],
+      defaultValue,
+      typeExecution = "call",
+      sendOptions = undefined,
+      debug = true,
+    } = options;
+    let response = defaultValue;
+    try {
+      //
+      // if (debug)
+      console.log("HERE ===> ", {
+        contract,
+        args,
+        arguments,
+        target: contract.methods[method],
+      });
+      response =
+        (await contract.methods[method](...args)[sendOptions ? "send" : "call"](
+          sendOptions
+        )) || defaultValue;
+      //
+    } catch (error) {
+      if (debug)
+        console.log(
+          "\n\n executeContractMethod error: ",
+          { error, options },
+          "\n\n"
+        );
+    }
+    console.log("\n\n Contract method call: ", {
+      contract,
+      method,
+      args,
+      defaultValue,
+      typeExecution,
+      sendOptions,
+      response,
+    });
+    return response;
+  };
+
+  const setContract = ({ abi }) => {
+    return new web3.eth.Contract(abi, NETWORK_ID);
+  };
+
   const newContactWasCreated = () => {
     fetchContacts();
   };
-
   const loadWeb3 = async () => {
-    // Modern dapp browsers...
-    if (window.ethereum) {
-      window.web3 = new Web3(ethereum);
-      try {
-        // Request account access if needed
-        await ethereum.enable();
-        // Acccounts now exposed
-        await window.web3.eth.sendTransaction({});
-      } catch (error) {
-        // User denied account access...
-      }
-    }
-    // Legacy dapp browsers...
-    else if (window.web3) {
-      window.web3 = new Web3(web3.currentProvider);
-      // Acccounts always exposed
-      await window.web3.eth.sendTransaction({});
-    }
-    // Non-dapp browsers...
-    else {
-      console.log(
-        "Non-Ethereum browser detected. You should consider trying MetaMask!"
-      );
+    try {
+      setWeb3(new Web3(Web3.givenProvider || "ws://localhost:8545"));
+    } catch (error) {
+      console.log("LOAD WEB3 ERROR: ", error);
     }
   };
-
-  const loadTodoContract = async () => {
-    const deployedNetwork = TodoListJSON.networks[networkId];
-    const todoCntr = new web3.eth.Contract(
-      TodoListJSON.abi,
-      deployedNetwork && deployedNetwork.address
-    );
-    setTodoContract(todoCntr);
-  };
-
-  const loadPayContract = async () => {
-    const deployedNetwork = PayJSON.networks[networkId];
-    const payCntr = new web3.eth.Contract(
-      PayJSON.abi,
-      deployedNetwork && deployedNetwork.address
-    );
-    setPayContract(payCntr);
-  };
-
   const createTask = async (content: string) => {
-    await todoContract.methods
-      .createTask(content)
-      .send({ from: addressAccount });
+    await executeContractMethod({
+      contract: todoContract,
+      method: "createTask",
+      args: [content],
+      typeExecution: "send",
+      sendOptions: { from: addressAccount },
+    });
   };
 
   const toggleCompleted = async (id) => {
-    await todoContract.methods
-      .toggleCompleted(id)
-      .send({ from: addressAccount });
+    await executeContractMethod({
+      contract: todoContract,
+      method: "toggleCompleted",
+      args: [id],
+      typeExecution: "send",
+      sendOptions: { from: addressAccount },
+    });
   };
 
   const fetchContacts = async () => {
-    const contacts = await payContract.methods.getContacts().call();
+    /* 
+    const contacts = await executeContractMethod({
+      contract: payContract,
+      method: "getContacts()",
+      // method: "getContacts(address)",
+      // args: [addressAccount],
+      defaultValue: [],
+    }); 
+    */
+    const contacts = (await payContract.methods.getContacts().call()) || [];
+    console.log("HERE ===> ", contacts);
     setContacts(contacts);
   };
 
   const addNewContact = async ({ full_name, address }) => {
-    try {
-      await payContract.methods
-        .addContact(full_name, address)
-        .send({ from: addressAccount });
-    } catch (e) {
-      console.log("error : ", e);
-    }
+    // await payContract.methods.addContact(full_name, address).send({ from: addressAccount });
+    await executeContractMethod({
+      contract: payContract,
+      method: "addContact",
+      args: [full_name, address],
+      typeExecution: "send",
+      sendOptions: { from: addressAccount },
+    });
   };
 
   const sendEth = async (contact_id: any, amount_in_eth: number) => {
-    const amount_in_wei = window.web3.utils.toWei(
-      String(amount_in_eth),
-      "ether"
-    );
-    await payContract.methods
-      .payEthToContact(contact_id)
-      .send({ from: addressAccount, value: amount_in_wei });
+    const amount_in_wei = web3.utils.toWei(String(amount_in_eth), "ether");
+    // await payContract.methods.payEthToContact(contact_id).send({ from: addressAccount, value: amount_in_wei });
+    await executeContractMethod({
+      contract: payContract,
+      method: "payEthToContact",
+      args: [contact_id],
+      typeExecution: "send",
+      sendOptions: { from: addressAccount, value: amount_in_wei },
+    });
     fetchBalance();
   };
 
   const fetchDefaultAccount = async () => {
-    const accounts = await window?.web3?.eth?.requestAccounts();
+    const accounts = await web3?.eth?.requestAccounts();
     const defaultAccount = accounts?.[0];
+    web3.eth.defaultAccount = defaultAccount;
     setAddressAccount(defaultAccount);
   };
 
@@ -158,13 +198,22 @@ export const Web3ContextProvider = (props: any) => {
   };
 
   const fetchTasks = async () => {
-    const tasksCount = await todoContract.methods
-      .tasksCount(addressAccount)
-      .call();
+    const tasksCount = await executeContractMethod({
+      contract: todoContract,
+      method: "tasksCount",
+      args: [addressAccount],
+      defaultValue: 0,
+    });
 
     const tasks = [];
     for (let i = 0; i < +tasksCount; i++) {
-      const task = await todoContract.methods.tasks(addressAccount, i).call();
+      const task = await executeContractMethod({
+        contract: todoContract,
+        method: "tasks",
+        args: [addressAccount, i],
+      });
+      //await todoContract.methods.tasks(addressAccount, i).call();
+
       tasks.push(task);
     }
     setTasks(tasks);
@@ -175,40 +224,38 @@ export const Web3ContextProvider = (props: any) => {
   };
 
   const loadContracts = async () => {
-    await loadPayContract();
-    await loadTodoContract();
+    setPayContract(setContract({ abi: PayJSON.abi }));
+    setTodoContract(setContract({ abi: TodoListJSON.abi }));
 
     //
-    setContractsAreLoaded(true);
-    setWeb3IsLoadTo(true);
+    setContractsAreReady(true);
   };
-
-  const loadNetworkId = async () => {
-    const networkId = await web3.eth.net.getId();
-    setNetworkId(networkId);
+  const bootstrap = async () => {
+    await fetchDefaultAccount();
+    loadContracts();
   };
   const init = async () => {
     try {
-      await loadWeb3();
-      await fetchDefaultAccount();
-      await loadNetworkId();
+      loadWeb3();
     } catch (error) {
       console.log("INIT ERROR: ", error);
     }
   };
+  //
   useEffect(() => {
     init();
   }, []);
   useEffect(() => {
-    if (!!networkId) loadContracts();
-  }, [networkId]);
+    if (web3) {
+      bootstrap();
+    }
+  }, [web3]);
   useEffect(() => {
-    if (!!contractsAreLoaded) {
+    if (contractsAreReady) {
       setContractsEventHandlers();
       fetchContacts();
     }
-  }, [contractsAreLoaded]);
-  //console.log("\n\n RENDER ===> ", { payContract });
+  }, [contractsAreReady]);
 
   return (
     <Web3Context.Provider
@@ -228,7 +275,7 @@ export const Web3ContextProvider = (props: any) => {
       }}
     >
       {(() => {
-        if (!Boolean(web3IsLoad)) return null;
+        if (!web3) return null;
 
         return props.children;
       })()}

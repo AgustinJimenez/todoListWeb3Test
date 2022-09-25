@@ -14,7 +14,8 @@ import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
 import Modal from "react-bootstrap/Modal";
 import Web3Context from "../src/contexts/Web3Context";
-import { IContact } from "../src/interfaces";
+import { IContact } from "../src/types";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 const Home: NextPage = () => {
   return (
@@ -56,11 +57,16 @@ const TodoList = () => {
   const sendEth = () => {};
 
   useEffect(() => {
-    init();
+    // init();
   }, []);
 
   return (
     <div className="col">
+      <Card body>
+        <Row>
+          <ConnectButton />
+        </Row>
+      </Card>
       <Card body className="text-center">
         <Card.Title>TODO LIST WEB3</Card.Title>
 
@@ -146,7 +152,7 @@ const PayAddress = () => {
   }, []);
 
   useEffect(() => {
-    init();
+    //init();
   }, []);
   return (
     <div className="col">
@@ -193,7 +199,7 @@ const PayAddress = () => {
         <Row>
           <div className="col-xs-12 mx-0 px-0">
             <ListGroup>
-              {contacts.map((contact: IContact, id: number) => (
+              {contacts?.map?.((contact: IContact, id: number) => (
                 <ListGroup.Item key={id}>
                   <div className="row">
                     <div className="col col-xs-3">{contact?.full_name}</div>
