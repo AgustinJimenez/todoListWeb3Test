@@ -7,7 +7,13 @@ yarn dev
 # run local server
 
 ```
-npx hardhat node
+yarn serve
+```
+
+# deploy local
+
+```
+yarn deploy_local
 ```
 
 # Advanced Sample Hardhat Project

@@ -15,7 +15,6 @@ import Card from "react-bootstrap/Card";
 import Modal from "react-bootstrap/Modal";
 import Web3Context from "../src/contexts/Web3Context";
 import { IContact } from "../src/types";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 const Home: NextPage = () => {
   return (
@@ -62,11 +61,6 @@ const TodoList = () => {
 
   return (
     <div className="col">
-      <Card body>
-        <Row>
-          <ConnectButton />
-        </Row>
-      </Card>
       <Card body className="text-center">
         <Card.Title>TODO LIST WEB3</Card.Title>
 

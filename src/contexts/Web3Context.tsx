@@ -1,7 +1,9 @@
 //@ts-nocheck
 import React, { useEffect, useState } from "react";
 import TodoListJSON from "../../artifacts/contracts/TodoList.sol/TodoList.json";
-import PayJSON from "../../artifacts/contracts/Pay.sol/Pay.json";
+import { ethers } from "ethers";
+import PayJSON from "../artifacts/contracts/Pay.sol/Pay.json";
+import GreeterJSON from "../artifacts/contracts/Greeter.sol/Greeter.json";
 import { weiToEth } from "../utils";
 import { IContact } from "../interfaces";
 import Web3 from "web3";
@@ -48,6 +50,7 @@ export const Web3Context = React.createContext<CtxProps>(CtxDefaultValues);
 
 export const Web3ContextProvider = (props: any) => {
   const [web3, setWeb3] = React.useState<Web3>();
+  const [web3Provider, setWeb3Provider] = React.useState();
   const [contractsAreReady, setContractsAreReady] = React.useState(false);
   const [networkId, setNetworkId] = React.useState();
   const [addressAccount, setAddressAccount] = React.useState<string>("");
@@ -84,6 +87,7 @@ export const Web3ContextProvider = (props: any) => {
         args,
         arguments,
         target: contract.methods[method],
+        methods: contract.methods,
       });
       response =
         (await contract.methods[method](...args)[sendOptions ? "send" : "call"](
@@ -110,8 +114,12 @@ export const Web3ContextProvider = (props: any) => {
     return response;
   };
 
-  const setContract = ({ abi }) => {
+  const setContractWithWeb3JsLib = async ({ abi }) => {
     return new web3.eth.Contract(abi, NETWORK_ID);
+  };
+
+  const setContractWithEthersLib = async ({ abi }) => {
+    return new ethers.Contract(NETWORK_ID, abi, web3Provider);
   };
 
   const newContactWasCreated = () => {
@@ -120,6 +128,7 @@ export const Web3ContextProvider = (props: any) => {
   const loadWeb3 = async () => {
     try {
       setWeb3(new Web3(Web3.givenProvider || "ws://localhost:8545"));
+      setWeb3Provider(new ethers.providers.Web3Provider(window.ethereum));
     } catch (error) {
       console.log("LOAD WEB3 ERROR: ", error);
     }
@@ -145,17 +154,16 @@ export const Web3ContextProvider = (props: any) => {
   };
 
   const fetchContacts = async () => {
-    /* 
+    console.log("fetchContacts start ===> ");
+
     const contacts = await executeContractMethod({
       contract: payContract,
-      method: "getContacts()",
-      // method: "getContacts(address)",
-      // args: [addressAccount],
+      method: "some()",
+      args: [],
       defaultValue: [],
-    }); 
-    */
-    const contacts = (await payContract.methods.getContacts().call()) || [];
-    console.log("HERE ===> ", contacts);
+    });
+
+    console.log("fetchContacts end ===> ", { contacts, payContract });
     setContacts(contacts);
   };
 
@@ -187,6 +195,7 @@ export const Web3ContextProvider = (props: any) => {
     const accounts = await web3?.eth?.requestAccounts();
     const defaultAccount = accounts?.[0];
     web3.eth.defaultAccount = defaultAccount;
+    // console.log("fetchDefaultAccount ===> ", { accounts, defaultAccount });
     setAddressAccount(defaultAccount);
   };
 
@@ -220,12 +229,13 @@ export const Web3ContextProvider = (props: any) => {
   };
 
   const setContractsEventHandlers = () => {
-    payContract?.events?.NewContactWasCreated(newContactWasCreated);
+    // payContract?.events?.NewContactWasCreated(newContactWasCreated);
   };
 
   const loadContracts = async () => {
-    setPayContract(setContract({ abi: PayJSON.abi }));
-    setTodoContract(setContract({ abi: TodoListJSON.abi }));
+    setPayContract(await setContractWithWeb3JsLib({ abi: PayJSON.abi }));
+
+    // setTodoContract(setContract({ abi: TodoListJSON.abi }));
 
     //
     setContractsAreReady(true);
@@ -241,15 +251,20 @@ export const Web3ContextProvider = (props: any) => {
       console.log("INIT ERROR: ", error);
     }
   };
-  //
+
+  //first
   useEffect(() => {
     init();
   }, []);
+
+  //second -> contractsAreReady to true
   useEffect(() => {
     if (web3) {
       bootstrap();
     }
   }, [web3]);
+
+  //third
   useEffect(() => {
     if (contractsAreReady) {
       setContractsEventHandlers();
@@ -277,7 +292,8 @@ export const Web3ContextProvider = (props: any) => {
       {(() => {
         if (!web3) return null;
 
-        return props.children;
+        // return props.children;
+        return null;
       })()}
     </Web3Context.Provider>
   );

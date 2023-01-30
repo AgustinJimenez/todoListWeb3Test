@@ -19,8 +19,4 @@ contract Greeter {
         console.log("Changing greeting from '%s' to '%s'", greeting, _greeting);
         greeting = _greeting;
     }
-
-    function some() public pure returns (string memory) {
-        return "yes yes yes";
-    }
 }

@@ -6,6 +6,10 @@ describe("Pay", function () {
     const payContractFactory = await ethers.getContractFactory("Pay");
     const payContract = await payContractFactory.deploy();
     await payContract.deployed();
+
+    const tmp = await payContract.getContacts();
+    console.log("here ===> ", tmp);
+
     const accountsList: any[] = await ethers.getSigners();
     const newContact = accountsList[3];
     const expectedFullName = `Next account - [${newContact.address}]`;

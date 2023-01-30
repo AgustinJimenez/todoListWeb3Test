@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.4.22 <0.9.0;
+pragma solidity ^0.8.0;
 // import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 // is ERC20
 contract Pay {
     // constructor() ERC20("Pay", "Pay") {owner = payable(msg.sender); // address that deploys contract will be the owner}
-
+    /* 
     event NewContactWasCreated();
 
     address payable owner;
@@ -16,17 +16,36 @@ contract Pay {
         string full_name;
         address wallet_address;
     }
-
-    function getContacts() public view returns (Contact[] memory) {
-        return contacts[msg.sender];
+     */
+    /* 
+    function some(uint256 tmp) public pure returns (uint256) {
+        return tmp;
+    }
+ */
+    function some()
+        public
+        view
+        returns (
+            string memory // returns (Contact[] memory)
+        )
+    {
+        console.log("HERE some() ===> ");
+        return "hello world";
+        // return msg.sender;
+        // return contacts[msg.sender];
     }
 
+    /* 
     function getContacts(address _address)
         public
         view
         returns (Contact[] memory)
     {
         return contacts[_address];
+    }
+
+    function getContacts() public view returns (Contact[] memory) {
+        return contacts[msg.sender];
     }
 
     function addContact(string memory _full_name, address _address) public {
@@ -61,7 +80,7 @@ contract Pay {
     function getBalance(address _address) public view returns (string memory) {
         return Strings.toString(address(_address).balance);
     }
-
+ */
     fallback() external payable {
         console.log("----- fallback:", msg.value);
     }
