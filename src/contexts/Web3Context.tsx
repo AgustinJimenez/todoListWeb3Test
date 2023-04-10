@@ -1,14 +1,20 @@
 //@ts-nocheck
 import React, { useEffect, useState } from "react";
-import TodoListJSON from "../../artifacts/contracts/TodoList.sol/TodoList.json";
-import { ethers } from "ethers";
-import PayJSON from "../artifacts/contracts/Pay.sol/Pay.json";
-import GreeterJSON from "../artifacts/contracts/Greeter.sol/Greeter.json";
+import MainJSON from "../artifacts/contracts/Main.sol/Main.json";
+import TodoListJSON from "../artifacts/contracts/TodoList.sol/TodoList.json";
 import { weiToEth } from "../utils";
 import { IContact } from "../interfaces";
 import Web3 from "web3";
 
-const NETWORK_ID = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+import {
+  EthereumClient,
+  modalConnectors,
+  walletConnectProvider,
+} from "@web3modal/ethereum";
+import { Web3Modal } from "@web3modal/react";
+import { configureChains, createClient, useAccount, WagmiConfig } from "wagmi";
+import { arbitrum, mainnet, polygon } from "wagmi/chains";
+import { contracts_address } from "../../config.json";
 
 interface ITask {
   id: number;
@@ -17,8 +23,7 @@ interface ITask {
 }
 
 interface CtxProps {
-  address: string;
-  setAddress: (newAddress: string) => void;
+  web3: any;
   tasks: ITask[];
   setTasks: (tasks: any) => void;
   fetchTasks: () => void;
@@ -32,8 +37,7 @@ interface CtxProps {
 }
 
 const CtxDefaultValues = {
-  address: "",
-  setAddress: (newAddress: string) => {},
+  web3: null,
   tasks: [],
   setTasks: (tasks: ITask[]) => {},
   fetchTasks: () => {},
@@ -48,17 +52,22 @@ const CtxDefaultValues = {
 
 export const Web3Context = React.createContext<CtxProps>(CtxDefaultValues);
 
+type ContractsState = {
+  mainContract?: any;
+  todoContract?: any;
+};
+
 export const Web3ContextProvider = (props: any) => {
+  const account = useAccount();
+  const [ready, setReady] = React.useState(false);
   const [web3, setWeb3] = React.useState<Web3>();
-  const [web3Provider, setWeb3Provider] = React.useState();
   const [contractsAreReady, setContractsAreReady] = React.useState(false);
   const [networkId, setNetworkId] = React.useState();
-  const [addressAccount, setAddressAccount] = React.useState<string>("");
   const [tasks, setTasks] = React.useState<ITask[]>([]);
   const [balance, setBalance] = React.useState(0);
   const [contacts, setContacts] = React.useState<IContact[]>([]);
-  const [todoContract, setTodoContract] = React.useState();
-  const [payContract, setPayContract] = React.useState();
+
+  const [contracts, setContracts] = React.useState<ContractsState>();
 
   const executeContractMethod = async (options: {
     contract: any;
@@ -81,18 +90,11 @@ export const Web3ContextProvider = (props: any) => {
     let response = defaultValue;
     try {
       //
-      // if (debug)
-      console.log("HERE ===> ", {
-        contract,
-        args,
-        arguments,
-        target: contract.methods[method],
-        methods: contract.methods,
-      });
-      response =
-        (await contract.methods[method](...args)[sendOptions ? "send" : "call"](
-          sendOptions
-        )) || defaultValue;
+      if (debug)
+        response =
+          (await contract.methods[method](...args)[
+            sendOptions ? "send" : "call"
+          ](sendOptions)) || defaultValue;
       //
     } catch (error) {
       if (debug)
@@ -102,24 +104,11 @@ export const Web3ContextProvider = (props: any) => {
           "\n\n"
         );
     }
-    console.log("\n\n Contract method call: ", {
-      contract,
-      method,
-      args,
-      defaultValue,
-      typeExecution,
-      sendOptions,
-      response,
-    });
     return response;
   };
 
-  const setContractWithWeb3JsLib = async ({ abi }) => {
-    return new web3.eth.Contract(abi, NETWORK_ID);
-  };
-
-  const setContractWithEthersLib = async ({ abi }) => {
-    return new ethers.Contract(NETWORK_ID, abi, web3Provider);
+  const setContractWithWeb3JsLib = async ({ abi, address }) => {
+    return new web3.eth.Contract(abi, address);
   };
 
   const newContactWasCreated = () => {
@@ -128,53 +117,47 @@ export const Web3ContextProvider = (props: any) => {
   const loadWeb3 = async () => {
     try {
       setWeb3(new Web3(Web3.givenProvider || "ws://localhost:8545"));
-      setWeb3Provider(new ethers.providers.Web3Provider(window.ethereum));
     } catch (error) {
       console.log("LOAD WEB3 ERROR: ", error);
     }
   };
   const createTask = async (content: string) => {
     await executeContractMethod({
-      contract: todoContract,
+      contract: contracts.todoContract,
       method: "createTask",
       args: [content],
       typeExecution: "send",
-      sendOptions: { from: addressAccount },
+      sendOptions: { from: account.address },
     });
   };
 
   const toggleCompleted = async (id) => {
     await executeContractMethod({
-      contract: todoContract,
+      contract: contracts.todoContract,
       method: "toggleCompleted",
       args: [id],
       typeExecution: "send",
-      sendOptions: { from: addressAccount },
+      sendOptions: { from: account.address },
     });
   };
 
   const fetchContacts = async () => {
-    console.log("fetchContacts start ===> ");
-
     const contacts = await executeContractMethod({
-      contract: payContract,
-      method: "some()",
+      contract: contracts.mainContract,
+      method: "getContacts()",
       args: [],
       defaultValue: [],
     });
-
-    console.log("fetchContacts end ===> ", { contacts, payContract });
     setContacts(contacts);
   };
 
   const addNewContact = async ({ full_name, address }) => {
-    // await payContract.methods.addContact(full_name, address).send({ from: addressAccount });
     await executeContractMethod({
-      contract: payContract,
+      contract: contracts.mainContract,
       method: "addContact",
       args: [full_name, address],
       typeExecution: "send",
-      sendOptions: { from: addressAccount },
+      sendOptions: { from: account.address },
     });
   };
 
@@ -182,46 +165,37 @@ export const Web3ContextProvider = (props: any) => {
     const amount_in_wei = web3.utils.toWei(String(amount_in_eth), "ether");
     // await payContract.methods.payEthToContact(contact_id).send({ from: addressAccount, value: amount_in_wei });
     await executeContractMethod({
-      contract: payContract,
+      contract: contracts.mainContract,
       method: "payEthToContact",
       args: [contact_id],
       typeExecution: "send",
-      sendOptions: { from: addressAccount, value: amount_in_wei },
+      sendOptions: { from: account.address, value: amount_in_wei },
     });
     fetchBalance();
   };
 
-  const fetchDefaultAccount = async () => {
-    const accounts = await web3?.eth?.requestAccounts();
-    const defaultAccount = accounts?.[0];
-    web3.eth.defaultAccount = defaultAccount;
-    // console.log("fetchDefaultAccount ===> ", { accounts, defaultAccount });
-    setAddressAccount(defaultAccount);
-  };
-
   const fetchBalance = async () => {
-    // let balance = await payContract.methods.getBalance().call();
-    let balance = await web3.eth.getBalance(addressAccount);
-    balance = weiToEth(balance).toFixed(3);
+    let balance = await web3.eth.getBalance(account.address);
+    balance = weiToEth(balance, web3).toFixed(3);
     setBalance(balance);
   };
 
   const fetchTasks = async () => {
     const tasksCount = await executeContractMethod({
-      contract: todoContract,
+      contract: contracts.todoContract,
       method: "tasksCount",
-      args: [addressAccount],
+      args: [account.address],
       defaultValue: 0,
     });
 
     const tasks = [];
     for (let i = 0; i < +tasksCount; i++) {
       const task = await executeContractMethod({
-        contract: todoContract,
+        contract: contracts.todoContract,
         method: "tasks",
-        args: [addressAccount, i],
+        args: [account.address, i],
       });
-      //await todoContract.methods.tasks(addressAccount, i).call();
+      await contracts.todoContract.methods.tasks(account.address, i).call();
 
       tasks.push(task);
     }
@@ -229,20 +203,20 @@ export const Web3ContextProvider = (props: any) => {
   };
 
   const setContractsEventHandlers = () => {
-    // payContract?.events?.NewContactWasCreated(newContactWasCreated);
+    contracts.mainContract?.events?.NewContactWasCreated(newContactWasCreated);
   };
 
   const loadContracts = async () => {
-    setPayContract(await setContractWithWeb3JsLib({ abi: PayJSON.abi }));
-
-    // setTodoContract(setContract({ abi: TodoListJSON.abi }));
-
-    //
-    setContractsAreReady(true);
-  };
-  const bootstrap = async () => {
-    await fetchDefaultAccount();
-    loadContracts();
+    setContracts({
+      todoContract: await setContractWithWeb3JsLib({
+        abi: TodoListJSON.abi,
+        address: contracts_address.TodoList,
+      }),
+      mainContract: await setContractWithWeb3JsLib({
+        abi: MainJSON.abi,
+        address: contracts_address.Main,
+      }),
+    });
   };
   const init = async () => {
     try {
@@ -252,31 +226,35 @@ export const Web3ContextProvider = (props: any) => {
     }
   };
 
-  //first
+  //first -> web3 is loaded
   useEffect(() => {
     init();
   }, []);
 
   //second -> contractsAreReady to true
   useEffect(() => {
-    if (web3) {
-      bootstrap();
-    }
+    if (web3) loadContracts();
   }, [web3]);
 
-  //third
+  //third set contracts handlers
   useEffect(() => {
-    if (contractsAreReady) {
+    if (contracts) {
       setContractsEventHandlers();
+      setReady(true);
+    }
+  }, [contracts]);
+
+  // fourth: everything is ready
+  useEffect(() => {
+    if (ready) {
       fetchContacts();
     }
-  }, [contractsAreReady]);
+  }, [ready]);
 
   return (
     <Web3Context.Provider
       value={{
-        address: addressAccount,
-        setAddress: setAddressAccount,
+        web3,
         tasks,
         setTasks,
         fetchTasks,
@@ -290,10 +268,9 @@ export const Web3ContextProvider = (props: any) => {
       }}
     >
       {(() => {
-        if (!web3) return null;
+        if (!contracts) return null;
 
-        // return props.children;
-        return null;
+        return props.children;
       })()}
     </Web3Context.Provider>
   );

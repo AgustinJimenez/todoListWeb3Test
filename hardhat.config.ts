@@ -31,7 +31,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: 1337,
     },
-    ropsten: {
+    /* ropsten: {
       url: process.env.ROPSTEN_URL || "",
       accounts:
         process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
@@ -41,7 +41,7 @@ const config: HardhatUserConfig = {
       accounts: [`0x${process.env.STAGING_PRIVATE_KEY}`],
       gas: 2100000,
       gasPrice: 8000000000,
-    },
+    }, */
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,

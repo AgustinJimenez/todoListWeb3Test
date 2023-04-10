@@ -15,18 +15,43 @@ import Card from "react-bootstrap/Card";
 import Modal from "react-bootstrap/Modal";
 import Web3Context from "../src/contexts/Web3Context";
 import { IContact } from "../src/types";
+import ConnectAccountButton from "../src/components/ConnectAccountButton";
+import { useAccount } from "wagmi";
 
-const Home: NextPage = () => {
+const ConnectAccountSection = () => {
+  const { isConnected } = useAccount();
+  if (isConnected) return null;
+
+  return (
+    <Row className="my-4">
+      <Col md={2} style={{ justifyContent: "center" }}>
+        <ConnectAccountButton />
+      </Col>
+    </Row>
+  );
+};
+
+const MainPageSection = () => {
+  const { isConnected } = useAccount();
+  if (!isConnected) return null;
+
+  return (
+    <main className="container mt-3">
+      <ConnectAccountSection />
+      <Row>
+        <TodoList />
+        <PayAddress />
+      </Row>
+    </main>
+  );
+};
+
+const HomePage: NextPage = (props) => {
   return (
     <>
       <Header />
 
-      <main className="container">
-        <Row>
-          <TodoList />
-          <PayAddress />
-        </Row>
-      </main>
+      <MainPageSection />
 
       <Footer />
     </>
@@ -56,7 +81,7 @@ const TodoList = () => {
   const sendEth = () => {};
 
   useEffect(() => {
-    // init();
+    init();
   }, []);
 
   return (
@@ -116,8 +141,9 @@ const TodoList = () => {
 };
 
 const PayAddress = () => {
-  const { address, balance, fetchBalance, sendEth, contacts, addNewContact } =
+  const { balance, fetchBalance, sendEth, contacts, addNewContact, web3 } =
     useContext(Web3Context);
+  const { address } = useAccount();
   const init = async () => {
     fetchBalance();
   };
@@ -129,7 +155,7 @@ const PayAddress = () => {
   };
   const contactIsInValid =
     !contactName.trim().length ||
-    !(window as any).web3.utils.isAddress(contactAddress) ||
+    !web3.utils.isAddress(contactAddress) ||
     contactAddress === address ||
     contacts
       .map(({ wallet_address }) => wallet_address)
@@ -146,7 +172,7 @@ const PayAddress = () => {
   }, []);
 
   useEffect(() => {
-    //init();
+    init();
   }, []);
   return (
     <div className="col">
@@ -244,4 +270,13 @@ const Header = () => {
     </Head>
   );
 };
-export default Home;
+/* 
+export async function getServerSideProps(context) {
+  return {
+    props: {
+      one: "two",
+    }, // will be passed to the page component as props
+  };
+}
+ */
+export default HomePage;
